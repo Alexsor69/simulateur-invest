@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend,
@@ -49,6 +50,9 @@ export default function LaverieSimulator() {
   const rentable = a1.cashflowNet > 0;
 
   const resultats = { droits, fraisAcquisition, inv, capitalEmprunte, mensu, rentaEco, rentaApport, seuilCA, delai, a1, data };
+
+  const chartTresorerieRef = useRef(null);
+  const chartCaChargesRef = useRef(null);
 
   function resetExemple() {
     setProjet((p) => ({ ...exempleDefaut, nomSimulation: p.nomSimulation }));
@@ -148,8 +152,12 @@ export default function LaverieSimulator() {
           hint="ordre de grandeur indicatif : 3 à 5 % pour un prêt professionnel (à vérifier, variable selon période et profil)" />
         <Slider label="Durée du prêt" value={projet.duree} setValue={set("duree")}
           min={1} max={25} step={1} unit="ans" reference={exempleDefaut.duree}
-          info="Durée du prêt professionnel. Détermine aussi la durée des projections (courbes)."
+          info="Durée du prêt professionnel (remboursement de l'emprunt uniquement)."
           hint="usuel : 7 ans pour un fonds de commerce seul ; jusqu'à 10-12 ans avec du matériel lourd ; 15-20 ans si les murs sont inclus" />
+        <Slider label="Durée de la simulation" value={projet.dureeSimulation} setValue={set("dureeSimulation")}
+          min={1} max={40} step={1} unit="ans" reference={exempleDefaut.dureeSimulation}
+          info="Horizon des graphiques et de la projection, indépendant de la durée du prêt. Réglez-la au-delà de la durée du prêt pour voir ce qui se passe après le remboursement complet (la mensualité disparaît, le cash-flow augmente)."
+          hint="peut dépasser la durée du prêt : la simulation continue sans mensualité une fois l'emprunt remboursé" />
 
         <h2 style={{ ...styles.panelTitle, marginTop: 28 }}>Exploitation (année 1, HT sauf mention)</h2>
         <Slider label="Chiffre d'affaires (HT)" value={projet.chiffreAffaires} setValue={set("chiffreAffaires")}
@@ -210,7 +218,13 @@ export default function LaverieSimulator() {
             <button type="button" style={styles.exportBtn}
               onClick={async () => {
                 const { exporterLaveriePdf } = await import("../utils/exportPdf");
-                exporterLaveriePdf({ nomSimulation, projet, resultats });
+                await exporterLaveriePdf({
+                  nomSimulation, projet, resultats,
+                  charts: {
+                    tresorerie: chartTresorerieRef.current,
+                    caCharges: chartCaChargesRef.current,
+                  },
+                });
               }}>
               Exporter en PDF
             </button>
@@ -282,8 +296,13 @@ export default function LaverieSimulator() {
             sub="apport / cash-flow net (année 1)" accent="#B45309" />
         </div>
 
-        <div style={styles.chartCard}>
+        <div style={styles.chartCard} ref={chartTresorerieRef}>
           <h3 style={styles.chartTitle}>Trésorerie cumulée après impôt, et bénéfice net par année</h3>
+          <p style={styles.chartNote}>
+            Simulée sur {projet.dureeSimulation} ans. La ligne pointillée verticale marque la fin
+            du prêt ({projet.duree} ans) : au-delà, la mensualité disparaît et le cash-flow
+            augmente.
+          </p>
           <ResponsiveContainer width="100%" height={320}>
             <AreaChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
               <defs>
@@ -303,6 +322,8 @@ export default function LaverieSimulator() {
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ fontSize: 13 }} />
               <ReferenceLine yAxisId="cumule" y={0} stroke="#94A3B8" strokeDasharray="4 4" />
+              <ReferenceLine yAxisId="cumule" x={projet.duree} stroke="#94A3B8" strokeDasharray="3 3"
+                label={{ value: "Fin du prêt", position: "top", fontSize: 11, fill: "#94A3B8" }} />
               <Area yAxisId="cumule" type="monotone" dataKey="cashCumule" name="Trésorerie cumulée (nette)"
                 stroke={rentable ? "#059669" : "#DC2626"} strokeWidth={2.5} fill="url(#gCash)" />
               <Area yAxisId="net" type="monotone" dataKey="resultatNet" name="Bénéfice net (année)"
@@ -311,7 +332,7 @@ export default function LaverieSimulator() {
           </ResponsiveContainer>
         </div>
 
-        <div style={styles.chartCard}>
+        <div style={styles.chartCard} ref={chartCaChargesRef}>
           <h3 style={styles.chartTitle}>Chiffre d'affaires et charges — projection sur la durée</h3>
           <p style={styles.chartNote}>
             Le CA progresse par paliers (hausse de {prix2(projet.augmentationPrixLavage)} € par
@@ -333,6 +354,8 @@ export default function LaverieSimulator() {
                 tick={{ fontSize: 12, fill: "#64748B" }} width={64} />
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ fontSize: 13 }} />
+              <ReferenceLine x={projet.duree} stroke="#94A3B8" strokeDasharray="3 3"
+                label={{ value: "Fin du prêt", position: "top", fontSize: 11, fill: "#94A3B8" }} />
               <Area type="stepAfter" dataKey="ca" name="Chiffre d'affaires (paliers de prix)"
                 stroke="#1D4ED8" strokeWidth={2.5} fill="url(#gCA)" />
               <Area type="monotone" dataKey="chargesExploitation" name="Charges + crédit-bail"
@@ -356,6 +379,8 @@ export default function LaverieSimulator() {
               <YAxis tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)} k€` : `${v} €`)}
                 tick={{ fontSize: 12, fill: "#64748B" }} width={64} />
               <Tooltip content={<CustomTooltip />} />
+              <ReferenceLine x={projet.duree} stroke="#94A3B8" strokeDasharray="3 3"
+                label={{ value: "Fin du prêt", position: "top", fontSize: 11, fill: "#94A3B8" }} />
               <Area type="monotone" dataKey="capitalRestant" name="Capital restant dû"
                 stroke="#64748B" strokeWidth={2.5} fill="url(#gCapital)" />
             </AreaChart>

@@ -64,6 +64,7 @@ export function exporterLaverieCsv({ nomSimulation, projet, resultats }) {
     ["Apport", projet.apport],
     ["Taux du prêt (%)", projet.taux],
     ["Durée du prêt (ans)", projet.duree],
+    ["Durée de la simulation (ans)", projet.dureeSimulation],
     ["Chiffre d'affaires (HT, année 1)", projet.chiffreAffaires],
     ["Prix moyen par lavage", projet.prixMoyenLavage],
     ["Hausse de prix par palier", projet.augmentationPrixLavage],

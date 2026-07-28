@@ -61,12 +61,15 @@ automatiquement dans les fichiers exportés.
 
 Deux boutons permettent d'extraire l'état actuel de la simulation :
 
-- **Exporter en PDF** : rapport structuré (résultats clés, paramètres
+- **Exporter en PDF** : rapport structuré (résultats clés, les deux
+  premiers graphiques capturés depuis l'écran, paramètres
   d'achat/financement/exploitation, projection annuelle complète), généré
-  avec [jsPDF](https://github.com/parallax/jsPDF) et
-  [jspdf-autotable](https://github.com/simonbengtsson/jsPDF-AutoTable).
+  avec [jsPDF](https://github.com/parallax/jsPDF),
+  [jspdf-autotable](https://github.com/simonbengtsson/jsPDF-AutoTable) et
+  [html2canvas](https://html2canvas.hertzen.com/) (pour les graphiques).
   Chargé à la demande (le code de génération PDF n'alourdit pas le
-  chargement initial de la page).
+  chargement initial de la page). Les graphiques sont capturés en JPEG
+  compressé pour garder un fichier léger.
 - **Exporter en Excel (.csv)** : même contenu au format CSV (séparateur
   `;`, encodage UTF-8), qui s'ouvre directement dans Excel ou LibreOffice
   Calc — pratique pour retravailler les chiffres ou la projection année
@@ -169,10 +172,22 @@ dirigeant. Pour une entreprise individuelle ou une société à l'IR, la
 fiscalité réelle est différente (le bénéfice s'ajoute à vos revenus
 personnels) : à affiner avec votre expert-comptable.
 
+### Durée de la simulation, indépendante de la durée du prêt
+
+La **durée de la simulation** (curseur séparé de la « Durée du prêt ») fixe
+l'horizon des graphiques et de la projection. Elle peut être plus longue
+que la durée du prêt, pour voir ce qui se passe **après le remboursement
+complet de l'emprunt** : la mensualité, les intérêts et le capital restant
+dû retombent à zéro, et le cash-flow net augmente d'un coup (il n'absorbe
+plus la mensualité). Une ligne de repère « Fin du prêt » est affichée sur
+les graphiques pour marquer cette transition. Si la durée de simulation est
+plus courte que la durée du prêt, c'est cette dernière qui prime (on ne
+coupe jamais l'affichage en plein remboursement).
+
 ### Amortissement du prêt, crédit-bail, énergie et hausse de prix
 
 Plutôt que de supposer un cash-flow annuel constant, l'application projette
-chaque poste année par année sur toute la durée du prêt :
+chaque poste année par année sur la durée de la simulation :
 
 - **Amortissement du prêt** : un échéancier complet répartit chaque
   mensualité entre part d'intérêts (déductible) et part de capital

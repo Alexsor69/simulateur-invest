@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import html2canvas from "html2canvas";
 import { eur } from "./format";
 
 const dateAujourdhui = () =>
@@ -10,7 +11,7 @@ const dateAujourdhui = () =>
 // (U+202F entre les milliers, U+00A0 avant le symbole €) : elles s'affichent
 // comme un caractère illisible. On les remplace par une espace normale,
 // uniquement pour le rendu PDF.
-const eurPdf = (v) => eur(v).replace(/[  ]/g, " ");
+const eurPdf = (v) => eur(v).replace(/[  ]/g, " ");
 
 // Styles communs à tous les tableaux : bordures visibles entre chaque ligne
 // et alternance de fond plus contrastée, pour faciliter la lecture. Le texte
@@ -29,18 +30,32 @@ const slug = (s) =>
   s.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "simulation";
 
+// Capture un graphique affiché à l'écran (élément DOM) sous forme d'image
+// JPEG, pour l'intégrer dans le PDF. Retourne null si l'élément n'est pas
+// disponible (composant pas encore monté, ref manquante...). JPEG à qualité
+// 0.92 plutôt que PNG : le fond blanc et les aplats de couleur des
+// graphiques compressent nettement mieux, pour un PDF final plus léger.
+async function capturerGraphique(element) {
+  if (!element) return null;
+  const canvas = await html2canvas(element, { scale: 1.5, backgroundColor: "#ffffff", logging: false });
+  return { dataUrl: canvas.toDataURL("image/jpeg", 0.92), width: canvas.width, height: canvas.height };
+}
+
 // Génère et télécharge un extrait PDF de la simulation Laverie en cours :
-// nom donné par l'utilisateur, date, résultats clés, paramètres saisis et
-// projection annuelle complète.
-export function exporterLaveriePdf({ nomSimulation, projet, resultats }) {
+// nom donné par l'utilisateur, date, résultats clés, deux graphiques
+// (capturés depuis l'écran), paramètres saisis et projection annuelle
+// complète.
+export async function exporterLaveriePdf({ nomSimulation, projet, resultats, charts }) {
   const titre = nomSimulation?.trim() ? nomSimulation.trim() : "Simulation sans titre";
   const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 14;
 
   doc.setFontSize(16);
-  doc.text(titre, 14, 18);
+  doc.text(titre, margin, 18);
   doc.setFontSize(10);
   doc.setTextColor(100);
-  doc.text(`Simulateur de rentabilité - Laverie - Exporte le ${dateAujourdhui()}`, 14, 25);
+  doc.text(`Simulateur de rentabilité - Laverie - Exporte le ${dateAujourdhui()}`, margin, 25);
 
   autoTable(doc, {
     ...tableStyle,
@@ -63,9 +78,31 @@ export function exporterLaveriePdf({ nomSimulation, projet, resultats }) {
     headStyles: { ...headStyleBase, fillColor: [29, 78, 216] },
   });
 
+  // Graphiques : capturés depuis l'écran (là où ils sont déjà rendus), puis
+  // insérés chacun sur sa propre page.
+  const [imgTresorerie, imgCaCharges] = await Promise.all([
+    capturerGraphique(charts?.tresorerie),
+    capturerGraphique(charts?.caCharges),
+  ]);
+
+  const ajouterGraphique = (img, titreGraphique) => {
+    if (!img) return;
+    doc.addPage();
+    doc.setFontSize(12);
+    doc.setTextColor(16, 24, 40);
+    doc.text(titreGraphique, margin, 18);
+    const imgWidth = pageWidth - margin * 2;
+    const imgHeight = (img.height / img.width) * imgWidth;
+    doc.addImage(img.dataUrl, "JPEG", margin, 24, imgWidth, imgHeight);
+  };
+
+  ajouterGraphique(imgTresorerie, "Trésorerie cumulée après impôt, et bénéfice net par année");
+  ajouterGraphique(imgCaCharges, "Chiffre d'affaires et charges — projection sur la durée");
+
+  doc.addPage();
   autoTable(doc, {
     ...tableStyle,
-    startY: doc.lastAutoTable.finalY + 8,
+    startY: 20,
     head: [["Achat, frais d'acquisition et financement", "Valeur"]],
     body: [
       ["Prix du fonds de commerce (HT)", eurPdf(projet.fonds)],
@@ -82,6 +119,7 @@ export function exporterLaveriePdf({ nomSimulation, projet, resultats }) {
       ["Apport", eurPdf(projet.apport)],
       ["Taux du prêt", `${projet.taux} %`],
       ["Durée du prêt", `${projet.duree} ans`],
+      ["Durée de la simulation", `${projet.dureeSimulation} ans`],
       ...(projet.creditBailActif ? [
         ["Crédit-bail — loyer annuel", eurPdf(projet.loyerCreditBailAnnuel)],
         ["Crédit-bail — durée du contrat", `${projet.dureeCreditBail} ans`],
@@ -133,7 +171,7 @@ export function exporterLaveriePdf({ nomSimulation, projet, resultats }) {
     doc.setTextColor(150);
     doc.text(
       "Simulation à titre pédagogique, ceci n'est pas un conseil en investissement.",
-      14,
+      margin,
       doc.internal.pageSize.getHeight() - 8
     );
   }

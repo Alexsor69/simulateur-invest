@@ -22,6 +22,10 @@ export const exempleDefaut = {
   taux: 4,
   duree: 10,
 
+  // Horizon de la simulation (graphiques), indépendant de la durée du prêt :
+  // permet de voir ce qui se passe après le remboursement complet de l'emprunt.
+  dureeSimulation: 15,
+
   // Chiffre d'affaires de départ (année 1) et hypothèse de hausse de prix.
   chiffreAffaires: 100000,
   prixMoyenLavage: 5,
@@ -294,16 +298,20 @@ export function seuilRentabiliteCA(p) {
   return coutsFixes + resultatImposable;
 }
 
-// Projection année par année sur toute la durée du prêt : CA (paliers de
-// prix), charges (énergie indexée), crédit-bail, amortissement du prêt,
-// impôt sur les sociétés, cash-flow net et trésorerie cumulée. Base de tous
-// les graphiques du simulateur.
+// Projection année par année sur l'horizon de simulation choisi (qui peut
+// dépasser la durée du prêt, pour voir ce qui se passe une fois l'emprunt
+// remboursé) : CA (paliers de prix), charges (énergie indexée), crédit-bail,
+// amortissement du prêt, impôt sur les sociétés, cash-flow net et trésorerie
+// cumulée. Base de tous les graphiques du simulateur. Au-delà de la durée du
+// prêt, l'échéancier (calculAnnee) traite naturellement mensualité, intérêts
+// et capital restant comme nuls.
 export function projectionAnnuelle(p) {
   const schedulePret = amortissementPret(p);
   let cumul = -p.apport;
   const points = [{ annee: 0, cashCumule: Math.round(cumul), resultatNet: 0 }];
 
-  for (let annee = 1; annee <= p.duree; annee++) {
+  const horizon = Math.max(p.dureeSimulation, p.duree);
+  for (let annee = 1; annee <= horizon; annee++) {
     const row = calculAnnee(p, annee, schedulePret[annee - 1]);
     cumul += row.cashflowNet;
 
