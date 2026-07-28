@@ -319,4 +319,9 @@ npm run deploy   # publie le build sur GitHub Pages
 
 Le projet est configuré pour être déployé sur GitHub Pages via le paquet
 `gh-pages`. Un `npm run deploy` construit l'application et publie le
-contenu de `dist/` sur la branche `gh-pages` du dépôt.
+contenu de `dist/` sur la branche `gh-pages` du dépôt, **sans conserver
+d'historique** (option `--no-history`) : chaque déploiement remplace
+entièrement le commit précédent sur cette branche, plutôt que de
+l'empiler. C'est une mesure de confidentialité par défaut : la branche
+`gh-pages` ne contient donc jamais que le dernier build, jamais
+d'anciennes versions du bundle.
