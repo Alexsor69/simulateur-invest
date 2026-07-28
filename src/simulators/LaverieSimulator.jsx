@@ -20,6 +20,7 @@ import {
   delaiRecuperation,
   anneeUn,
   projectionAnnuelle,
+  formatDureeMois,
 } from "./laverieCalculs";
 
 const prix2 = (v) => v.toFixed(2);
@@ -131,9 +132,10 @@ export default function LaverieSimulator() {
             <Slider label="Loyer de crédit-bail annuel" value={projet.loyerCreditBailAnnuel} setValue={set("loyerCreditBailAnnuel")}
               min={0} max={20000} step={250} format={eur} reference={exempleDefaut.loyerCreditBailAnnuel}
               info="Redevance annuelle de crédit-bail sur les machines à laver / séchoirs. Charge d'exploitation entièrement déductible, distincte de l'emprunt bancaire." />
-            <Slider label="Durée du contrat" value={projet.dureeCreditBail} setValue={set("dureeCreditBail")}
-              min={1} max={10} step={1} unit="ans" reference={exempleDefaut.dureeCreditBail}
-              info="Durée du contrat de crédit-bail. Le loyer s'arrête à l'échéance." />
+            <Slider label="Durée restante du contrat" value={projet.dureeCreditBail} setValue={set("dureeCreditBail")}
+              min={1} max={120} step={1} unit="mois" reference={exempleDefaut.dureeCreditBail}
+              info="Nombre de mois restants sur le contrat de crédit-bail (réglable au mois près, pas seulement par année entière). Le loyer s'arrête, prorata compris, à l'échéance."
+              hint={`≈ ${formatDureeMois(projet.dureeCreditBail)}`} />
             <Slider label="Valeur de l'option d'achat" value={projet.valeurOptionAchat} setValue={set("valeurOptionAchat")}
               min={0} max={10000} step={100} format={eur} reference={exempleDefaut.valeurOptionAchat}
               info="Montant à payer en une fois à l'échéance du contrat si vous levez l'option d'achat pour devenir propriétaire du matériel (souvent une valeur symbolique)."

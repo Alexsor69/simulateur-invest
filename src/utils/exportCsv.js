@@ -59,7 +59,7 @@ export function exporterLaverieCsv({ nomSimulation, projet, resultats }) {
     ["Dotation annuelle aux amortissements", projet.dotationsAmortissement],
     ["Crédit-bail actif", projet.creditBailActif ? "oui" : "non"],
     ["Crédit-bail - loyer annuel", projet.loyerCreditBailAnnuel],
-    ["Crédit-bail - durée (ans)", projet.dureeCreditBail],
+    ["Crédit-bail - durée restante (mois)", projet.dureeCreditBail],
     ["Crédit-bail - valeur option d'achat", projet.valeurOptionAchat],
     ["Apport", projet.apport],
     ["Taux du prêt (%)", projet.taux],

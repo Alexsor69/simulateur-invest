@@ -47,9 +47,11 @@ export const exempleDefaut = {
   dotationsAmortissement: 2800,
 
   // Crédit-bail (leasing) sur le matériel, désactivé par défaut.
+  // dureeCreditBail : durée restante du contrat en MOIS (pas en années),
+  // pour pouvoir régler une échéance en cours d'année (ex. 43 mois).
   creditBailActif: false,
   loyerCreditBailAnnuel: 4000,
-  dureeCreditBail: 5,
+  dureeCreditBail: 60,
   valeurOptionAchat: 1000,
 };
 
@@ -165,18 +167,40 @@ export function chargesExploitationAnnuelle(p, annee) {
   return p.loyer + p.assurance + p.cfe + p.entretien + chargesEnergieAnnuelle(p, annee);
 }
 
-// Loyer de crédit-bail de l'année N (0 si non activé ou contrat terminé).
-export function loyerCreditBailAnnee(p, annee) {
+// Nombre de mois de crédit-bail actifs pendant l'année N (0 à 12). La durée
+// restante du contrat (p.dureeCreditBail) est exprimée en mois, ce qui
+// permet une échéance en cours d'année (ex. 43 mois restants) plutôt
+// qu'un multiple entier d'années.
+function moisCreditBailActifs(p, annee) {
   if (!p.creditBailActif) return 0;
-  return annee <= p.dureeCreditBail ? p.loyerCreditBailAnnuel : 0;
+  const debutMois = (annee - 1) * 12 + 1;
+  const finMois = annee * 12;
+  const moisActifs = Math.min(finMois, p.dureeCreditBail) - debutMois + 1;
+  return Math.max(0, Math.min(12, moisActifs));
+}
+
+// Loyer de crédit-bail de l'année N, proratisé sur la dernière année
+// partielle si la durée restante ne tombe pas sur une année pleine.
+export function loyerCreditBailAnnee(p, annee) {
+  return p.loyerCreditBailAnnuel * (moisCreditBailActifs(p, annee) / 12);
 }
 
 // Levée d'option d'achat en fin de crédit-bail : sortie de trésorerie ponctuelle
 // l'année où le contrat se termine (le matériel devient alors la propriété de
 // l'exploitant).
 export function achatOptionCreditBailAnnee(p, annee) {
-  if (!p.creditBailActif) return 0;
-  return annee === p.dureeCreditBail ? p.valeurOptionAchat : 0;
+  if (!p.creditBailActif || p.dureeCreditBail <= 0) return 0;
+  const derniereAnnee = Math.ceil(p.dureeCreditBail / 12);
+  return annee === derniereAnnee ? p.valeurOptionAchat : 0;
+}
+
+// Formate une durée en mois en texte lisible ("3 ans 7 mois", "8 mois"...).
+export function formatDureeMois(mois) {
+  const annees = Math.floor(mois / 12);
+  const moisRestants = mois % 12;
+  if (annees > 0 && moisRestants > 0) return `${annees} an${annees > 1 ? "s" : ""} ${moisRestants} mois`;
+  if (annees > 0) return `${annees} an${annees > 1 ? "s" : ""}`;
+  return `${moisRestants} mois`;
 }
 
 // Dotation aux amortissements comptables de l'année N (0 une fois le bien

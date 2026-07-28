@@ -1,6 +1,5 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import html2canvas from "html2canvas";
 import { eur } from "./format";
 
 const dateAujourdhui = () =>
@@ -89,15 +88,66 @@ function dessinerStatut(doc, y, rentable) {
   return y + 12;
 }
 
-// Capture un graphique affiché à l'écran (élément DOM) sous forme d'image
-// JPEG, pour l'intégrer dans le PDF. Retourne null si l'élément n'est pas
-// disponible (composant pas encore monté, ref manquante...). JPEG à qualité
-// 0.92 plutôt que PNG : le fond blanc et les aplats de couleur des
-// graphiques compressent nettement mieux, pour un PDF final plus léger.
+// Capture le graphique (SVG recharts) affiché à l'écran sous forme d'image
+// JPEG, pour l'intégrer dans le PDF. Rasterise directement le <svg> via le
+// navigateur (sérialisation + <img> + <canvas>) plutôt que par une
+// librairie type html2canvas : celle-ci approxime le rendu HTML/CSS et ne
+// gère pas correctement les dégradés SVG (linearGradient) utilisés par nos
+// graphiques, ce qui produisait un cadre vide sans les courbes. Cette
+// méthode s'appuie sur le moteur de rendu SVG natif du navigateur, donc
+// fidèle au pixel près. Retourne null si le graphique n'est pas disponible
+// (composant pas encore monté, ref manquante, pas de <svg> trouvé...).
 async function capturerGraphique(element) {
-  if (!element) return null;
-  const canvas = await html2canvas(element, { scale: 1.5, backgroundColor: "#ffffff", logging: false });
-  return { dataUrl: canvas.toDataURL("image/jpeg", 0.92), width: canvas.width, height: canvas.height };
+  const svg = element?.querySelector("svg");
+  if (!svg) return null;
+
+  const width = parseFloat(svg.getAttribute("width")) || svg.clientWidth;
+  const height = parseFloat(svg.getAttribute("height")) || svg.clientHeight;
+  if (!width || !height) return null;
+
+  let svgString = new XMLSerializer().serializeToString(svg);
+  if (!svgString.includes("xmlns=")) {
+    svgString = svgString.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
+  }
+  const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Échec du chargement du graphique en image"));
+      image.src = url;
+    });
+
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    return { dataUrl: canvas.toDataURL("image/jpeg", 0.92), width: canvas.width, height: canvas.height };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Dessine une légende simple (carré de couleur + libellé) sous le titre
+// d'un graphique — recharts affiche sa légende en HTML à côté du <svg>, qui
+// n'est donc pas inclus dans l'image rasterisée ci-dessus.
+function dessinerLegende(doc, x, y, series) {
+  doc.setFontSize(9);
+  let curX = x;
+  series.forEach(({ nom, couleur }) => {
+    doc.setFillColor(...couleur);
+    doc.rect(curX, y - 3, 3, 3, "F");
+    doc.setTextColor(30, 41, 59);
+    doc.text(nom, curX + 5, y);
+    curX += 5 + doc.getTextWidth(nom) + 8;
+  });
 }
 
 // Cellule de tableau mise en valeur : texte en gras et en couleur, pour
@@ -151,21 +201,34 @@ export async function exporterLaveriePdf({ nomSimulation, projet, resultats, cha
     capturerGraphique(charts?.caCharges),
   ]);
 
-  const ajouterGraphique = (img, titreGraphique, color) => {
+  const ajouterGraphique = (img, titreGraphique, color, series) => {
     if (!img) return;
     doc.addPage();
     const yBandeau = dessinerBandeau(doc, titreGraphique, null, color);
+    dessinerLegende(doc, margin, yBandeau + 6, series);
     const imgWidth = pageWidth - margin * 2;
     const imgHeight = (img.height / img.width) * imgWidth;
-    doc.addImage(img.dataUrl, "JPEG", margin, yBandeau + 8, imgWidth, imgHeight);
+    doc.addImage(img.dataUrl, "JPEG", margin, yBandeau + 10, imgWidth, imgHeight);
   };
 
   ajouterGraphique(
     imgTresorerie,
     "Trésorerie cumulée après impôt, et bénéfice net par année",
-    rentable ? COLORS.green : COLORS.red
+    rentable ? COLORS.green : COLORS.red,
+    [
+      { nom: "Trésorerie cumulée (nette)", couleur: rentable ? COLORS.green : COLORS.red },
+      { nom: "Bénéfice net (année)", couleur: COLORS.amber },
+    ]
   );
-  ajouterGraphique(imgCaCharges, "Chiffre d'affaires et charges — projection sur la durée", COLORS.primary);
+  ajouterGraphique(
+    imgCaCharges,
+    "Chiffre d'affaires et charges — projection sur la durée",
+    COLORS.primary,
+    [
+      { nom: "Chiffre d'affaires (paliers de prix)", couleur: COLORS.primary },
+      { nom: "Charges + crédit-bail", couleur: COLORS.amber },
+    ]
+  );
 
   doc.addPage();
   y = dessinerBandeau(doc, "Paramètres de la simulation", null, COLORS.slate);
@@ -191,7 +254,7 @@ export async function exporterLaveriePdf({ nomSimulation, projet, resultats, cha
       ["Durée de la simulation", `${projet.dureeSimulation} ans`],
       ...(projet.creditBailActif ? [
         ["Crédit-bail — loyer annuel", eurPdf(projet.loyerCreditBailAnnuel)],
-        ["Crédit-bail — durée du contrat", `${projet.dureeCreditBail} ans`],
+        ["Crédit-bail — durée restante", `${projet.dureeCreditBail} mois`],
         ["Crédit-bail — valeur de l'option d'achat", eurPdf(projet.valeurOptionAchat)],
       ] : []),
     ],

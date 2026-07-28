@@ -64,17 +64,19 @@ Deux boutons permettent d'extraire l'état actuel de la simulation :
 - **Exporter en PDF** : rapport structuré et habillé visuellement (bandeaux
   colorés par section, bannière de statut rentable/non rentable en tête de
   document, chiffres clés mis en couleur), avec résultats clés, les deux
-  premiers graphiques capturés depuis l'écran, paramètres
-  d'achat/financement/exploitation et projection annuelle complète (page,
-  numérotée). Généré avec [jsPDF](https://github.com/parallax/jsPDF),
-  [jspdf-autotable](https://github.com/simonbengtsson/jsPDF-AutoTable) et
-  [html2canvas](https://html2canvas.hertzen.com/) (pour les graphiques).
-  Chargé à la demande (le code de génération PDF n'alourdit pas le
+  premiers graphiques (rasterisés directement depuis le `<svg>` affiché à
+  l'écran, avec une légende redessinée manuellement), paramètres
+  d'achat/financement/exploitation et projection annuelle complète (pages
+  numérotées). Généré avec [jsPDF](https://github.com/parallax/jsPDF) et
+  [jspdf-autotable](https://github.com/simonbengtsson/jsPDF-AutoTable),
+  chargés à la demande (le code de génération PDF n'alourdit pas le
   chargement initial de la page). Les graphiques sont capturés en JPEG
-  compressé pour garder un fichier léger. Les montants monétaires sont
-  reformatés pour l'export (espace normale entre les milliers) car les
-  polices standards de jsPDF n'affichent pas l'espace fine insécable du
-  formatage français.
+  compressé pour garder un fichier léger — via une sérialisation directe
+  du SVG (`<img>` + `<canvas>`), plus fidèle qu'une capture DOM générique
+  pour les dégradés utilisés par les graphiques. Les montants monétaires
+  sont reformatés pour l'export (espace normale entre les milliers) car
+  les polices standards de jsPDF n'affichent pas l'espace fine insécable
+  du formatage français.
 - **Exporter en Excel (.csv)** : même contenu au format CSV (séparateur
   `;`, encodage UTF-8), qui s'ouvre directement dans Excel ou LibreOffice
   Calc — pratique pour retravailler les chiffres ou la projection année
@@ -200,10 +202,13 @@ chaque poste année par année sur la durée de la simulation :
   les intérêts déductibles de chaque année — la part d'intérêts diminue
   et celle de capital augmente au fil du temps, à mensualité totale
   constante.
-- **Crédit-bail (matériel)**, optionnel : loyer annuel fixe pendant la
-  durée du contrat (charge d'exploitation déductible, distincte de
-  l'emprunt bancaire), puis sortie de trésorerie ponctuelle si vous levez
-  l'option d'achat à l'échéance.
+- **Crédit-bail (matériel)**, optionnel : loyer annuel (charge
+  d'exploitation déductible, distincte de l'emprunt bancaire) pendant la
+  **durée restante du contrat, réglable au mois près** (et non par année
+  entière) — utile pour un contrat repris en cours de route (ex. 43 mois
+  restants). La dernière année est proratisée automatiquement si
+  l'échéance tombe en cours d'année. Sortie de trésorerie ponctuelle si
+  vous levez l'option d'achat à l'échéance.
 - **Hausse de l'énergie** : eau + gaz + électricité augmentent chaque
   année selon un taux d'inflation composé (`charge × (1 + taux)^(année-1)`)
   — c'est le seul poste de charges indexé.
