@@ -61,15 +61,20 @@ automatiquement dans les fichiers exportés.
 
 Deux boutons permettent d'extraire l'état actuel de la simulation :
 
-- **Exporter en PDF** : rapport structuré (résultats clés, les deux
+- **Exporter en PDF** : rapport structuré et habillé visuellement (bandeaux
+  colorés par section, bannière de statut rentable/non rentable en tête de
+  document, chiffres clés mis en couleur), avec résultats clés, les deux
   premiers graphiques capturés depuis l'écran, paramètres
-  d'achat/financement/exploitation, projection annuelle complète), généré
-  avec [jsPDF](https://github.com/parallax/jsPDF),
+  d'achat/financement/exploitation et projection annuelle complète (page,
+  numérotée). Généré avec [jsPDF](https://github.com/parallax/jsPDF),
   [jspdf-autotable](https://github.com/simonbengtsson/jsPDF-AutoTable) et
   [html2canvas](https://html2canvas.hertzen.com/) (pour les graphiques).
   Chargé à la demande (le code de génération PDF n'alourdit pas le
   chargement initial de la page). Les graphiques sont capturés en JPEG
-  compressé pour garder un fichier léger.
+  compressé pour garder un fichier léger. Les montants monétaires sont
+  reformatés pour l'export (espace normale entre les milliers) car les
+  polices standards de jsPDF n'affichent pas l'espace fine insécable du
+  formatage français.
 - **Exporter en Excel (.csv)** : même contenu au format CSV (séparateur
   `;`, encodage UTF-8), qui s'ouvre directement dans Excel ou LibreOffice
   Calc — pratique pour retravailler les chiffres ou la projection année
