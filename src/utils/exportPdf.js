@@ -97,8 +97,28 @@ function dessinerStatut(doc, y, rentable) {
 // méthode s'appuie sur le moteur de rendu SVG natif du navigateur, donc
 // fidèle au pixel près. Retourne null si le graphique n'est pas disponible
 // (composant pas encore monté, ref manquante, pas de <svg> trouvé...).
+//
+// Un chartCard contient plusieurs <svg> : le graphique lui-même, mais aussi
+// une minuscule icône (14×14) par série pour chaque pastille de couleur de
+// la légende (rendue en HTML par recharts, à côté du <svg> principal). Ces
+// icônes apparaissent souvent AVANT le graphique dans le DOM : prendre le
+// premier <svg> trouvé récupère donc une pastille au lieu du graphique, qui
+// une fois étirée en pleine page ressemble à une image cassée pixelisée.
+// On sélectionne plutôt le <svg> de plus grande surface.
+function trouverSvgPrincipal(element) {
+  const svgs = Array.from(element?.querySelectorAll("svg") ?? []);
+  if (svgs.length === 0) return null;
+  return svgs.reduce((plusGrand, svg) => {
+    const aire = (parseFloat(svg.getAttribute("width")) || 0) * (parseFloat(svg.getAttribute("height")) || 0);
+    const aireMax = plusGrand
+      ? (parseFloat(plusGrand.getAttribute("width")) || 0) * (parseFloat(plusGrand.getAttribute("height")) || 0)
+      : -1;
+    return aire > aireMax ? svg : plusGrand;
+  }, null);
+}
+
 async function capturerGraphique(element) {
-  const svg = element?.querySelector("svg");
+  const svg = trouverSvgPrincipal(element);
   if (!svg) return null;
 
   const width = parseFloat(svg.getAttribute("width")) || svg.clientWidth;
@@ -192,6 +212,7 @@ export async function exporterLaveriePdf({ nomSimulation, projet, resultats, cha
       ["Délai de récupération", resultats.delai ? `${resultats.delai.toFixed(1)} ans` : "—"],
     ],
     headStyles: { ...headStyleBase, fillColor: COLORS.primary },
+    columnStyles: { 1: { halign: "right" } },
   });
 
   // Graphiques : capturés depuis l'écran (là où ils sont déjà rendus), puis
@@ -259,6 +280,7 @@ export async function exporterLaveriePdf({ nomSimulation, projet, resultats, cha
       ] : []),
     ],
     headStyles: { ...headStyleBase, fillColor: COLORS.slate },
+    columnStyles: { 1: { halign: "right" } },
   });
 
   autoTable(doc, {
@@ -281,6 +303,7 @@ export async function exporterLaveriePdf({ nomSimulation, projet, resultats, cha
       ["Dotation annuelle aux amortissements", eurPdf(projet.dotationsAmortissement)],
     ],
     headStyles: { ...headStyleBase, fillColor: COLORS.amber },
+    columnStyles: { 1: { halign: "right" } },
   });
 
   if (doc.lastAutoTable.finalY > 230) doc.addPage();
@@ -297,8 +320,9 @@ export async function exporterLaveriePdf({ nomSimulation, projet, resultats, cha
       accent(eurPdf(d.cashflowNet), d.cashflowNet >= 0 ? COLORS.green : COLORS.red),
       eurPdf(d.cashCumule),
     ]),
-    headStyles: { ...headStyleBase, fillColor: COLORS.dark },
-    styles: { ...tableStyle.styles, fontSize: 8 },
+    headStyles: { ...headStyleBase, fillColor: COLORS.dark, halign: "center" },
+    styles: { ...tableStyle.styles, fontSize: 8, halign: "right" },
+    columnStyles: { 0: { halign: "center" } },
   });
 
   const pageCount = doc.internal.getNumberOfPages();
